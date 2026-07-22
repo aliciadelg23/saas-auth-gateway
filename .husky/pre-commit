@@ -1,0 +1,9 @@
+# Ensure Node is available even when Git is invoked from a shell that has
+# not loaded nvm (e.g. GUI clients, cron jobs).
+if [ -z "$NODE" ] && [ -s "$HOME/.nvm/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$HOME/.nvm/nvm.sh"
+  nvm use --lts=iron >/dev/null 2>&1 || nvm use 22 >/dev/null 2>&1 || true
+fi
+
+pnpm exec lint-staged

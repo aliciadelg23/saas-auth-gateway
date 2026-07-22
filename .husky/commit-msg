@@ -1,0 +1,13 @@
+# Conventional Commits pattern check
+COMMIT_MSG_FILE="$1"
+COMMIT_MSG=$(head -n1 "$COMMIT_MSG_FILE")
+
+PATTERN='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9-]+\))?!?: .{1,100}$'
+
+if ! echo "$COMMIT_MSG" | grep -Eq "$PATTERN"; then
+  echo "✖ Commit message does not follow Conventional Commits."
+  echo "  Expected: <type>(<scope>)?: <subject>"
+  echo "  Types:    build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test"
+  echo "  Got:      $COMMIT_MSG"
+  exit 1
+fi
