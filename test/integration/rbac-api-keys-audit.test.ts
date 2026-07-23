@@ -5,11 +5,7 @@ import { buildApp } from '../../src/app.js'
 import { loadEnv, type Env } from '../../src/config/index.js'
 import { buildContainer, type AppContainer } from '../../src/container.js'
 import { PERMISSIONS, SYSTEM_ROLES } from '../../src/core/rbac/permissions.js'
-import {
-  makeTestPrismaClient,
-  requireTestDatabase,
-  resetDatabase,
-} from '../support/test-prisma.js'
+import { makeTestPrismaClient, requireTestDatabase, resetDatabase } from '../support/test-prisma.js'
 
 const TENANT_SLUG = 'acme-authz'
 const OWNER_EMAIL = 'owner@acme.test'

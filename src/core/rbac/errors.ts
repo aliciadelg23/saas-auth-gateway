@@ -1,9 +1,4 @@
-import {
-  ConflictError,
-  ForbiddenError,
-  NotFoundError,
-  ValidationError,
-} from '../shared/errors.js'
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../shared/errors.js'
 
 export class RoleNotFoundError extends NotFoundError {
   override readonly code: string = 'ROLE_NOT_FOUND'

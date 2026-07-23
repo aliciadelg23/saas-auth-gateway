@@ -11,14 +11,11 @@ const EnvSchema = z
 
     DATABASE_URL: z.string().url(),
 
-    // Rate limiting
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
     RATE_LIMIT_WINDOW: z.string().min(1).default('1 minute'),
 
-    // CORS
     CORS_ORIGINS: z.string().default('*'),
 
-    // JWT
     JWT_ISSUER: z.string().min(1).default('https://saas-auth-gateway.local'),
     JWT_AUDIENCE: z.string().min(1).default('saas-auth-gateway'),
     JWT_ACCESS_TTL_SECONDS: z.coerce
@@ -35,13 +32,10 @@ const EnvSchema = z
     JWT_PUBLIC_KEY_PEM: z.string().optional(),
     JWT_KEY_ID: z.string().min(1).default('primary'),
 
-    // Password
     PASSWORD_PEPPER: z.string().default(''),
 
-    // Refresh tokens
     REFRESH_TOKEN_BYTES: z.coerce.number().int().min(16).max(128).default(48),
 
-    // Swagger
     SWAGGER_ENABLED: z
       .enum(['true', 'false'])
       .default('true')

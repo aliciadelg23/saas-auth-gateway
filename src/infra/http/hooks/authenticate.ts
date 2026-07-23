@@ -63,10 +63,7 @@ export function requirePrincipal(req: FastifyRequest): Principal {
   return req.principal
 }
 
-async function verifyAccessToken(
-  token: string,
-  opts: AuthenticateOptions,
-): Promise<Principal> {
+async function verifyAccessToken(token: string, opts: AuthenticateOptions): Promise<Principal> {
   const payload = await opts.tokenIssuer.verifyAccessToken(token)
   const session = await opts.sessions.findById(payload.sessionId)
   if (!session || session.revokedAt !== null) {

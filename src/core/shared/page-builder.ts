@@ -40,8 +40,6 @@ export function buildPage<TRow extends Cursorable, TDomain>(
   const items = trimmed.map(toDomain)
   const last = trimmed[trimmed.length - 1]
   const nextCursor =
-    hasMore && last
-      ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id })
-      : null
+    hasMore && last ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id }) : null
   return { items, nextCursor }
 }

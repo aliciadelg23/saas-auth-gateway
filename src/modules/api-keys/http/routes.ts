@@ -137,7 +137,12 @@ const apiKeyRoutes: FastifyPluginAsync<Deps> = async (
         tags: ['api-keys'],
         summary: 'Get an API key by id',
         params: z.object({ tenantId: z.string().min(1), keyId: z.string().min(1) }),
-        response: { 200: ApiKeyResponse, 401: ErrorResponse, 403: ErrorResponse, 404: ErrorResponse },
+        response: {
+          200: ApiKeyResponse,
+          401: ErrorResponse,
+          403: ErrorResponse,
+          404: ErrorResponse,
+        },
       },
     },
     async (req) => {

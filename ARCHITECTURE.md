@@ -445,7 +445,7 @@ src/
   there is no role indirection for machine identities.
 - Compromise recovery: `DELETE /v1/tenants/:tenantId/api-keys/:id`
   sets `revokedAt`; subsequent requests get `401
-  INVALID_API_KEY`. The audit trail preserves the deletion.
+INVALID_API_KEY`. The audit trail preserves the deletion.
 
 ### 16.4 Audit trail
 

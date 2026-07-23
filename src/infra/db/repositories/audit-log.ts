@@ -22,9 +22,7 @@ function toDomain(row: PrismaAuditLog): AuditRecord {
   }
 }
 
-function buildWhere(
-  query: Omit<AuditLogQuery, 'limit' | 'cursor'>,
-): Prisma.AuditLogWhereInput {
+function buildWhere(query: Omit<AuditLogQuery, 'limit' | 'cursor'>): Prisma.AuditLogWhereInput {
   const where: Prisma.AuditLogWhereInput = {}
   if (query.tenantId !== undefined) where.tenantId = query.tenantId
   if (query.action !== undefined) where.action = query.action

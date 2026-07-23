@@ -3,7 +3,10 @@ import type { Role, UserRoleAssignment } from './entities.js'
 export interface RoleRepository {
   findById(tenantId: string, id: string): Promise<Role | null>
   findByName(tenantId: string, name: string): Promise<Role | null>
-  list(tenantId: string, opts?: { limit?: number; cursor?: string | null }): Promise<{
+  list(
+    tenantId: string,
+    opts?: { limit?: number; cursor?: string | null },
+  ): Promise<{
     items: Role[]
     nextCursor: string | null
   }>

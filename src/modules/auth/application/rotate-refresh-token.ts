@@ -1,9 +1,6 @@
 import { AUDIT_ACTIONS } from '../../../core/audit/entities.js'
 import type { AuditSink } from '../../../core/audit/ports.js'
-import {
-  InvalidRefreshTokenError,
-  RefreshTokenReuseError,
-} from '../../../core/auth/errors.js'
+import { InvalidRefreshTokenError, RefreshTokenReuseError } from '../../../core/auth/errors.js'
 import type {
   RefreshTokenRepository,
   RefreshTokenService,

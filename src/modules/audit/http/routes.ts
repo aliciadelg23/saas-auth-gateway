@@ -14,10 +14,7 @@ interface Deps {
   container: AppContainer
 }
 
-const auditRoutes: FastifyPluginAsync<Deps> = async (
-  app: FastifyInstance,
-  { container }: Deps,
-) => {
+const auditRoutes: FastifyPluginAsync<Deps> = async (app: FastifyInstance, { container }: Deps) => {
   const routes = app.withTypeProvider<ZodTypeProvider>()
   const guard = container.services.requirePermission
 

@@ -129,14 +129,14 @@ Authenticate a request with an API key by sending
 
 ## Permission catalog
 
-| Permission | Notes |
-| --- | --- |
-| `iam.tenants.read` / `.write` | Tenant metadata (admin-only surface, WIP) |
-| `iam.users.read` / `.write` / `.delete` | User management (WIP) |
-| `iam.roles.read` / `.write` / `.assign` | Role CRUD + assignments |
-| `iam.api-keys.read` / `.write` | API key lifecycle |
-| `iam.audit.read` | Audit log listing |
-| `iam.dashboard.read` | Dashboard overview |
+| Permission                              | Notes                                     |
+| --------------------------------------- | ----------------------------------------- |
+| `iam.tenants.read` / `.write`           | Tenant metadata (admin-only surface, WIP) |
+| `iam.users.read` / `.write` / `.delete` | User management (WIP)                     |
+| `iam.roles.read` / `.write` / `.assign` | Role CRUD + assignments                   |
+| `iam.api-keys.read` / `.write`          | API key lifecycle                         |
+| `iam.audit.read`                        | Audit log listing                         |
+| `iam.dashboard.read`                    | Dashboard overview                        |
 
 System roles seeded per tenant:
 
@@ -146,19 +146,19 @@ System roles seeded per tenant:
 
 ## Scripts
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm dev` | Fastify with hot reload (`tsx watch`) |
-| `pnpm build` | Compile TypeScript to `dist/` |
-| `pnpm start` | Run the compiled server |
-| `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm lint` | ESLint with zero warnings |
-| `pnpm format` / `pnpm format:check` | Prettier |
-| `pnpm test` / `pnpm test:coverage` | Vitest |
-| `pnpm prisma:generate` | Regenerate the Prisma client |
-| `pnpm prisma:migrate:dev` | Create + apply a migration |
-| `pnpm prisma:migrate:deploy` | Apply migrations (CI / prod) |
-| `pnpm prisma:seed` | Seed default tenant + system roles + admin |
+| Command                             | Purpose                                    |
+| ----------------------------------- | ------------------------------------------ |
+| `pnpm dev`                          | Fastify with hot reload (`tsx watch`)      |
+| `pnpm build`                        | Compile TypeScript to `dist/`              |
+| `pnpm start`                        | Run the compiled server                    |
+| `pnpm typecheck`                    | `tsc --noEmit`                             |
+| `pnpm lint`                         | ESLint with zero warnings                  |
+| `pnpm format` / `pnpm format:check` | Prettier                                   |
+| `pnpm test` / `pnpm test:coverage`  | Vitest                                     |
+| `pnpm prisma:generate`              | Regenerate the Prisma client               |
+| `pnpm prisma:migrate:dev`           | Create + apply a migration                 |
+| `pnpm prisma:migrate:deploy`        | Apply migrations (CI / prod)               |
+| `pnpm prisma:seed`                  | Seed default tenant + system roles + admin |
 
 ## Docker
 

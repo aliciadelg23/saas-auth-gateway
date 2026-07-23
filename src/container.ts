@@ -2,10 +2,7 @@ import { PrismaClient } from '@prisma/client'
 import type { onRequestAsyncHookHandler, preHandlerAsyncHookHandler } from 'fastify'
 
 import type { Env } from './config/index.js'
-import type {
-  ApiKeyMinter,
-  ApiKeyRepository,
-} from './core/api-keys/ports.js'
+import type { ApiKeyMinter, ApiKeyRepository } from './core/api-keys/ports.js'
 import type { AuditLogRepository, AuditSink } from './core/audit/ports.js'
 import type {
   CredentialRepository,
@@ -17,11 +14,7 @@ import type {
   TokenIssuer,
   UserRepository,
 } from './core/auth/ports.js'
-import type {
-  PermissionEvaluator,
-  RoleRepository,
-  UserRoleRepository,
-} from './core/rbac/ports.js'
+import type { PermissionEvaluator, RoleRepository, UserRoleRepository } from './core/rbac/ports.js'
 import { SystemClock, type Clock } from './core/shared/clock.js'
 import { PrismaAuditSink } from './infra/audit/prisma-audit-sink.js'
 import { HmacApiKeyService } from './infra/crypto/api-key-service.js'
@@ -37,10 +30,7 @@ import { PrismaSessionRepository } from './infra/db/repositories/session.js'
 import { PrismaTenantRepository } from './infra/db/repositories/tenant.js'
 import { PrismaUserRoleRepository } from './infra/db/repositories/user-role.js'
 import { PrismaUserRepository } from './infra/db/repositories/user.js'
-import {
-  buildAuthenticate,
-  type AuthenticateOptions,
-} from './infra/http/hooks/authenticate.js'
+import { buildAuthenticate, type AuthenticateOptions } from './infra/http/hooks/authenticate.js'
 import { buildRequirePermission } from './infra/http/hooks/require-permission.js'
 import { CreateApiKey } from './modules/api-keys/application/create-api-key.js'
 import { ListApiKeys } from './modules/api-keys/application/list-api-keys.js'
