@@ -352,3 +352,156 @@ for a SaaS at this scale.
 - No graph database. RBAC/ABAC is expressible in Postgres for the size
   of the target deployments.
 - No monorepo. If a second deployable emerges we revisit.
+
+## 16. Implementation status (post-Milestone 4)
+
+The Fastify + Prisma implementation currently mirrors the design as
+follows.
+
+### 16.1 Layout, as built
+
+```text
+src/
+├── config/                     # Zod-validated env loader
+├── core/                       # Pure domain — no framework, no I/O
+│   ├── auth/                   # Tenant + user + session + refresh
+│   │   ├── entities.ts
+│   │   ├── errors.ts
+│   │   └── ports.ts
+│   ├── rbac/
+│   │   ├── entities.ts
+│   │   ├── errors.ts
+│   │   ├── permissions.ts      # Catalog + system-role definitions
+│   │   └── ports.ts
+│   ├── api-keys/
+│   │   ├── entities.ts
+│   │   ├── errors.ts
+│   │   └── ports.ts
+│   ├── audit/
+│   │   ├── entities.ts         # AuditEvent + AUDIT_ACTIONS catalog
+│   │   └── ports.ts
+│   └── shared/
+│       ├── clock.ts
+│       ├── email.ts
+│       ├── errors.ts
+│       ├── pagination.ts
+│       ├── page-builder.ts     # cursorWhere + buildPage helpers
+│       ├── principal.ts
+│       └── tenant-scope.ts     # assertTenantAccess
+├── infra/
+│   ├── audit/                  # PrismaAuditSink + NoopAuditSink
+│   ├── crypto/                 # argon2, jose JWT, HMAC refresh, HMAC api key
+│   ├── db/
+│   │   ├── prisma-client.ts    # Fastify plugin
+│   │   └── repositories/       # tenant, user, credential, session,
+│   │                           # refresh-token, role, user-role,
+│   │                           # api-key, audit-log
+│   ├── http/
+│   │   ├── errors/             # setErrorHandler mapper
+│   │   ├── hooks/              # authenticate + requirePermission
+│   │   └── plugins/            # security, swagger, validation, health
+│   └── logging/                # Pino config with redaction list
+├── modules/
+│   ├── auth/                   # register, login, refresh, logout
+│   ├── rbac/                   # create/list/assign/unassign role
+│   ├── api-keys/               # create, list, revoke, hydrate
+│   ├── audit/                  # list with filters
+│   └── dashboard/              # tenant overview
+├── container.ts                # Composition root
+├── app.ts
+└── main.ts
+```
+
+### 16.2 RBAC
+
+- Permissions are string constants declared in
+  `core/rbac/permissions.ts` (`iam.<resource>.<verb>`). This catalog
+  is exposed publicly at `GET /v1/permissions` for admin UIs.
+- `Role` is tenant-scoped; the `(tenantId, name)` composite is
+  unique. A role owns a set of permissions through the
+  `role_permissions` join.
+- `UserRole` binds a user to a role; a user's effective permission
+  set is the union of every role they hold in the tenant.
+- `RbacPermissionEvaluator` implements `PermissionEvaluator.userCan`
+  by loading distinct permissions across a user's roles in one
+  query. Denials propagate as `PermissionDeniedError` (403 with
+  code `PERMISSION_DENIED`).
+- System roles (`owner`, `admin`, `member`) are seeded per tenant
+  by `pnpm prisma:seed` and marked `isSystem=true`. The seed is
+  idempotent — permissions get replaced on rerun.
+
+### 16.3 API keys
+
+- Token format: `sag_<hex-prefix>_<base64url-secret>`. Using hex for
+  the prefix guarantees the `_` separator never collides with a
+  base64url character inside the prefix.
+- Storage keeps the public `prefix` (indexed unique) plus
+  `tokenHash = HMAC-SHA256(secret, plaintext)`. The plaintext is
+  handed to the caller exactly once at creation.
+- Each key has a `scopes: string[]` list. When a request presents a
+  key, `authenticate` looks it up by prefix, verifies the HMAC,
+  checks expiry + revocation, and fires an async `lastUsedAt`
+  touch. `requirePermission` then checks the scope list directly —
+  there is no role indirection for machine identities.
+- Compromise recovery: `DELETE /v1/tenants/:tenantId/api-keys/:id`
+  sets `revokedAt`; subsequent requests get `401
+  INVALID_API_KEY`. The audit trail preserves the deletion.
+
+### 16.4 Audit trail
+
+- `AuditSink.record` is fire-and-forget: it catches persistence
+  errors and logs a warning instead of throwing. A broken audit
+  trail must never block the auth flow it is documenting.
+- Use cases emit stable action strings from `AUDIT_ACTIONS`
+  (`auth.user.registered`, `auth.user.logged_in`,
+  `auth.user.login_failed`, `auth.refresh_token.rotated`,
+  `auth.refresh_token.reuse_detected`, `auth.session.revoked`,
+  `iam.role.created`, `iam.role.assigned`, …). Login failures are
+  recorded with `outcome=failure` so brute-force patterns surface
+  in the audit log without extra machinery.
+- Reads go through `GET /v1/tenants/:tenantId/audit-logs`, which
+  supports `action`, `actorId`, `resourceType`, `resourceId`,
+  `outcome`, `since`, `until` filters and cursor pagination keyed
+  on `(createdAt DESC, id DESC)`.
+
+### 16.5 Pagination
+
+- Cursor payload is the base64url-encoded JSON `{ createdAt, id }`
+  of the last row. Rows sort by `createdAt DESC, id DESC` so ties
+  break deterministically.
+- `core/shared/page-builder.ts` centralizes the `cursorWhere` clause
+  and the `buildPage` mapper so every list repository shares one
+  implementation. Adding a new listable aggregate means declaring
+  the domain shape + wiring the mapper.
+
+### 16.6 Authentication pipeline
+
+- The route pre-handler `authenticate` accepts:
+  - `Authorization: Bearer <JWT>` — verifies signature + issuer +
+    audience, then checks the associated session is neither
+    revoked nor expired.
+  - `Authorization: Bearer sag_...` (or `X-API-Key: sag_...`) —
+    parses the API key, HMACs the plaintext, verifies the hash
+    matches the stored value, checks expiry + revocation, and
+    asynchronously touches `lastUsedAt`.
+- The narrowed `Principal` (`user` or `api-key`) attaches to the
+  Fastify request via a typed decoration.
+- `requirePermission(action)` is a factory that returns a
+  pre-handler enforcing the given permission for the current
+  principal. Users dispatch to `PermissionEvaluator`; API keys
+  dispatch to the embedded scope list.
+
+### 16.7 Tenant scoping
+
+Every tenant-scoped route runs `assertTenantAccess(principal,
+req.params.tenantId)` before touching a repository. This is the
+last line of defense against a valid credential trying to reach
+another tenant's data. It sits in `core/shared/tenant-scope.ts` so
+the check is unambiguous and reusable across modules.
+
+### 16.8 Dashboard
+
+`GetDashboardOverview` fires five counts (users, active users,
+roles, live API keys, active sessions) and a recent-audit-events
+select in a single `Promise.all`, so the admin UI can render its
+landing page in one round-trip.
