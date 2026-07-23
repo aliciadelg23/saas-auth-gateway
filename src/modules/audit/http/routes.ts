@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { AuditLogListResponse, AuditLogQuery } from './schemas.js'
 import type { AppContainer } from '../../../container.js'
 import { PERMISSIONS } from '../../../core/rbac/permissions.js'
-import { ForbiddenError } from '../../../core/shared/errors.js'
+import { assertTenantAccess } from '../../../core/shared/tenant-scope.js'
 import { requirePrincipal } from '../../../infra/http/hooks/authenticate.js'
 import { ErrorResponse } from '../../auth/http/schemas.js'
 
@@ -35,9 +35,7 @@ const auditRoutes: FastifyPluginAsync<Deps> = async (
     },
     async (req) => {
       const principal = requirePrincipal(req)
-      if (principal.tenantId !== req.params.tenantId) {
-        throw new ForbiddenError('Principal is not scoped to this tenant')
-      }
+      assertTenantAccess(principal, req.params.tenantId)
       const query = req.query
       const result = await container.useCases.listAuditLogs.execute({
         tenantId: req.params.tenantId,

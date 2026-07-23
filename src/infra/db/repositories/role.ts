@@ -2,11 +2,8 @@ import type { PrismaClient } from '@prisma/client'
 
 import type { Role } from '../../../core/rbac/entities.js'
 import type { RoleRepository } from '../../../core/rbac/ports.js'
-import {
-  decodeCursor,
-  encodeCursor,
-  normalizeLimit,
-} from '../../../core/shared/pagination.js'
+import { buildPage, cursorWhere } from '../../../core/shared/page-builder.js'
+import { normalizeLimit } from '../../../core/shared/pagination.js'
 
 interface RoleRow {
   id: string
@@ -56,33 +53,13 @@ export class PrismaRoleRepository implements RoleRepository {
     opts: { limit?: number; cursor?: string | null } = {},
   ): Promise<{ items: Role[]; nextCursor: string | null }> {
     const limit = normalizeLimit(opts.limit)
-    const cursor = decodeCursor(opts.cursor)
     const rows = await this.prisma.role.findMany({
-      where: {
-        tenantId,
-        ...(cursor
-          ? {
-              OR: [
-                { createdAt: { lt: new Date(cursor.createdAt) } },
-                {
-                  AND: [{ createdAt: new Date(cursor.createdAt) }, { id: { lt: cursor.id } }],
-                },
-              ],
-            }
-          : {}),
-      },
+      where: { tenantId, ...cursorWhere(opts.cursor) },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
       include: { permissions: true },
     })
-
-    const items = rows.slice(0, limit).map(toDomain)
-    const last = items[items.length - 1]
-    const nextCursor =
-      rows.length > limit && last
-        ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id })
-        : null
-    return { items, nextCursor }
+    return buildPage(rows, limit, toDomain)
   }
 
   async create(input: {

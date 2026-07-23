@@ -2,11 +2,8 @@ import type { ApiKey as PrismaApiKey, PrismaClient } from '@prisma/client'
 
 import type { ApiKey } from '../../../core/api-keys/entities.js'
 import type { ApiKeyRepository } from '../../../core/api-keys/ports.js'
-import {
-  decodeCursor,
-  encodeCursor,
-  normalizeLimit,
-} from '../../../core/shared/pagination.js'
+import { buildPage, cursorWhere } from '../../../core/shared/page-builder.js'
+import { normalizeLimit } from '../../../core/shared/pagination.js'
 
 function toDomain(row: PrismaApiKey): ApiKey {
   return {
@@ -43,31 +40,12 @@ export class PrismaApiKeyRepository implements ApiKeyRepository {
     opts: { limit?: number; cursor?: string | null } = {},
   ): Promise<{ items: ApiKey[]; nextCursor: string | null }> {
     const limit = normalizeLimit(opts.limit)
-    const cursor = decodeCursor(opts.cursor)
     const rows = await this.prisma.apiKey.findMany({
-      where: {
-        tenantId,
-        ...(cursor
-          ? {
-              OR: [
-                { createdAt: { lt: new Date(cursor.createdAt) } },
-                {
-                  AND: [{ createdAt: new Date(cursor.createdAt) }, { id: { lt: cursor.id } }],
-                },
-              ],
-            }
-          : {}),
-      },
+      where: { tenantId, ...cursorWhere(opts.cursor) },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
     })
-    const items = rows.slice(0, limit).map(toDomain)
-    const last = items[items.length - 1]
-    const nextCursor =
-      rows.length > limit && last
-        ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id })
-        : null
-    return { items, nextCursor }
+    return buildPage(rows, limit, toDomain)
   }
 
   async create(input: {

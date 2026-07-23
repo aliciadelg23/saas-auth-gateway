@@ -13,7 +13,7 @@ import {
 import type { AppContainer } from '../../../container.js'
 import type { ApiKey } from '../../../core/api-keys/entities.js'
 import { PERMISSIONS } from '../../../core/rbac/permissions.js'
-import { ForbiddenError } from '../../../core/shared/errors.js'
+import { assertTenantAccess } from '../../../core/shared/tenant-scope.js'
 import { requirePrincipal } from '../../../infra/http/hooks/authenticate.js'
 import { ErrorResponse } from '../../auth/http/schemas.js'
 
@@ -38,12 +38,6 @@ function serialize(key: ApiKey) {
 
 const tenantParamSchema = z.object({ tenantId: z.string().min(1) })
 
-function assertTenantAccess(principalTenantId: string, requestedTenantId: string): void {
-  if (principalTenantId !== requestedTenantId) {
-    throw new ForbiddenError('Principal is not scoped to this tenant')
-  }
-}
-
 const apiKeyRoutes: FastifyPluginAsync<Deps> = async (
   app: FastifyInstance,
   { container }: Deps,
@@ -65,7 +59,7 @@ const apiKeyRoutes: FastifyPluginAsync<Deps> = async (
     },
     async (req) => {
       const principal = requirePrincipal(req)
-      assertTenantAccess(principal.tenantId, req.params.tenantId)
+      assertTenantAccess(principal, req.params.tenantId)
       const result = await container.useCases.listApiKeys.execute({
         tenantId: req.params.tenantId,
         ...(req.query.cursor !== undefined ? { cursor: req.query.cursor } : {}),
@@ -94,7 +88,7 @@ const apiKeyRoutes: FastifyPluginAsync<Deps> = async (
     },
     async (req, reply) => {
       const principal = requirePrincipal(req)
-      assertTenantAccess(principal.tenantId, req.params.tenantId)
+      assertTenantAccess(principal, req.params.tenantId)
       const result = await container.useCases.createApiKey.execute({
         tenantId: req.params.tenantId,
         name: req.body.name,
@@ -121,7 +115,7 @@ const apiKeyRoutes: FastifyPluginAsync<Deps> = async (
     },
     async (req, reply) => {
       const principal = requirePrincipal(req)
-      assertTenantAccess(principal.tenantId, req.params.tenantId)
+      assertTenantAccess(principal, req.params.tenantId)
       await container.useCases.revokeApiKey.execute({
         tenantId: req.params.tenantId,
         keyId: req.params.keyId,
@@ -148,7 +142,7 @@ const apiKeyRoutes: FastifyPluginAsync<Deps> = async (
     },
     async (req) => {
       const principal = requirePrincipal(req)
-      assertTenantAccess(principal.tenantId, req.params.tenantId)
+      assertTenantAccess(principal, req.params.tenantId)
       const key = await container.repositories.apiKeys.findById(
         req.params.tenantId,
         req.params.keyId,

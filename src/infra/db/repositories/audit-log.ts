@@ -2,11 +2,8 @@ import type { AuditLog as PrismaAuditLog, Prisma, PrismaClient } from '@prisma/c
 
 import type { ActorType, AuditRecord } from '../../../core/audit/entities.js'
 import type { AuditLogQuery, AuditLogRepository } from '../../../core/audit/ports.js'
-import {
-  decodeCursor,
-  encodeCursor,
-  normalizeLimit,
-} from '../../../core/shared/pagination.js'
+import { buildPage, cursorWhere } from '../../../core/shared/page-builder.js'
+import { normalizeLimit } from '../../../core/shared/pagination.js'
 
 function toDomain(row: PrismaAuditLog): AuditRecord {
   return {
@@ -49,36 +46,19 @@ export class PrismaAuditLogRepository implements AuditLogRepository {
 
   async list(query: AuditLogQuery): Promise<{ items: AuditRecord[]; nextCursor: string | null }> {
     const limit = normalizeLimit(query.limit)
-    const cursor = decodeCursor(query.cursor)
+    const cursor = cursorWhere(query.cursor)
     const baseWhere = buildWhere(query)
-    const where: Prisma.AuditLogWhereInput = cursor
-      ? {
-          AND: [
-            baseWhere,
-            {
-              OR: [
-                { createdAt: { lt: new Date(cursor.createdAt) } },
-                {
-                  AND: [{ createdAt: new Date(cursor.createdAt) }, { id: { lt: cursor.id } }],
-                },
-              ],
-            },
-          ],
-        }
-      : baseWhere
+    const where: Prisma.AuditLogWhereInput =
+      Object.keys(cursor).length > 0
+        ? { AND: [baseWhere, cursor as Prisma.AuditLogWhereInput] }
+        : baseWhere
 
     const rows = await this.prisma.auditLog.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
     })
-    const items = rows.slice(0, limit).map(toDomain)
-    const last = items[items.length - 1]
-    const nextCursor =
-      rows.length > limit && last
-        ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id })
-        : null
-    return { items, nextCursor }
+    return buildPage(rows, limit, toDomain)
   }
 
   async count(query: Omit<AuditLogQuery, 'limit' | 'cursor'>): Promise<number> {
