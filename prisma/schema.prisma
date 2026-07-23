@@ -1,7 +1,6 @@
 // Prisma schema — saas-auth-gateway
 //
-// Milestone 2 baseline: identity aggregates required for password-based
-// authentication with refresh-token rotation.
+// Aggregates: tenants + identity + RBAC + API keys + audit trail.
 
 generator client {
   provider = "prisma-client-js"
@@ -12,16 +11,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// -----------------------------------------------------------------------------
+// Tenants
+// -----------------------------------------------------------------------------
+
 model Tenant {
-  id        String   @id @default(cuid())
-  slug      String   @unique
+  id        String       @id @default(cuid())
+  slug      String       @unique
   name      String
   status    TenantStatus @default(ACTIVE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
-  users   User[]
+  users    User[]
   sessions Session[]
+  roles    Role[]
+  apiKeys  ApiKey[]
 
   @@map("tenants")
 }
@@ -31,20 +36,25 @@ enum TenantStatus {
   SUSPENDED
 }
 
+// -----------------------------------------------------------------------------
+// Users, credentials, sessions, refresh tokens
+// -----------------------------------------------------------------------------
+
 model User {
-  id             String   @id @default(cuid())
-  tenantId       String
-  email          String
+  id              String     @id @default(cuid())
+  tenantId        String
+  email           String
   emailNormalized String
   emailVerifiedAt DateTime?
-  displayName    String?
-  status         UserStatus @default(ACTIVE)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  displayName     String?
+  status          UserStatus @default(ACTIVE)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   credentials Credential[]
   sessions    Session[]
+  roles       UserRole[]
 
   @@unique([tenantId, emailNormalized], name: "tenant_email_unique")
   @@index([tenantId])
@@ -61,7 +71,7 @@ model Credential {
   id        String         @id @default(cuid())
   userId    String
   type      CredentialType
-  secret    String         // Argon2id hash for PASSWORD
+  secret    String
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
@@ -77,19 +87,19 @@ enum CredentialType {
 }
 
 model Session {
-  id         String   @id @default(cuid())
-  userId     String
-  tenantId   String
-  familyId   String   @default(cuid())
-  ip         String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
-  expiresAt  DateTime
-  revokedAt  DateTime?
+  id            String    @id @default(cuid())
+  userId        String
+  tenantId      String
+  familyId      String    @default(cuid())
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
   revokedReason String?
 
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
 
   @@index([userId, revokedAt])
@@ -98,18 +108,18 @@ model Session {
 }
 
 model RefreshToken {
-  id             String   @id @default(cuid())
-  sessionId      String
-  tokenHash      String   @unique
-  familyId       String
-  issuedAt       DateTime @default(now())
-  expiresAt      DateTime
-  rotatedAt      DateTime?
-  revokedAt      DateTime?
-  revokedReason  String?
-  replacedById   String?  @unique
-  ip             String?
-  userAgent      String?
+  id            String    @id @default(cuid())
+  sessionId     String
+  tokenHash     String    @unique
+  familyId      String
+  issuedAt      DateTime  @default(now())
+  expiresAt     DateTime
+  rotatedAt     DateTime?
+  revokedAt     DateTime?
+  revokedReason String?
+  replacedById  String?   @unique
+  ip            String?
+  userAgent     String?
 
   session      Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   replacedBy   RefreshToken? @relation("RefreshTokenChain", fields: [replacedById], references: [id])
@@ -119,4 +129,106 @@ model RefreshToken {
   @@index([familyId])
   @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+// -----------------------------------------------------------------------------
+// RBAC — roles, permissions, assignments
+// -----------------------------------------------------------------------------
+
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  assignments UserRole[]
+
+  @@unique([tenantId, name], name: "tenant_role_name_unique")
+  @@index([tenantId])
+  @@map("roles")
+}
+
+model RolePermission {
+  id         String @id @default(cuid())
+  roleId     String
+  permission String
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permission], name: "role_permission_unique")
+  @@index([roleId])
+  @@index([permission])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  grantedAt DateTime @default(now())
+  grantedBy String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId], name: "user_role_unique")
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+// -----------------------------------------------------------------------------
+// API keys
+// -----------------------------------------------------------------------------
+
+model ApiKey {
+  id            String    @id @default(cuid())
+  tenantId      String
+  name          String
+  prefix        String    @unique
+  tokenHash     String    @unique
+  scopes        String[]
+  createdBy     String?
+  createdAt     DateTime  @default(now())
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  revokedReason String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([revokedAt])
+  @@map("api_keys")
+}
+
+// -----------------------------------------------------------------------------
+// Audit log
+// -----------------------------------------------------------------------------
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  tenantId     String?
+  actorType    String
+  actorId      String?
+  action       String
+  resourceType String?
+  resourceId   String?
+  ip           String?
+  userAgent    String?
+  metadata     Json     @default("{}")
+  outcome      String
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([action])
+  @@index([actorId])
+  @@index([resourceType, resourceId])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
 }
