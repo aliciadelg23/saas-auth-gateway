@@ -1,4 +1,9 @@
-import { InvalidRefreshTokenError, RefreshTokenReuseError } from '../../../core/auth/errors.js'
+import { AUDIT_ACTIONS } from '../../../core/audit/entities.js'
+import type { AuditSink } from '../../../core/audit/ports.js'
+import {
+  InvalidRefreshTokenError,
+  RefreshTokenReuseError,
+} from '../../../core/auth/errors.js'
 import type {
   RefreshTokenRepository,
   RefreshTokenService,
@@ -35,6 +40,7 @@ export class RotateRefreshToken {
     private readonly sessions: SessionRepository,
     private readonly tokenIssuer: TokenIssuer,
     private readonly clock: Clock,
+    private readonly audit: AuditSink,
     private readonly config: RotateRefreshTokenConfig,
   ) {}
 
@@ -46,10 +52,20 @@ export class RotateRefreshToken {
     if (!stored) throw new InvalidRefreshTokenError()
 
     if (stored.rotatedAt !== null) {
-      // Reuse of an already-rotated token indicates that a stolen token
-      // is being replayed. Revoke the entire family and session.
       await this.refreshTokens.revokeFamily(stored.familyId, 'REUSE_DETECTED')
       await this.sessions.revoke(stored.sessionId, 'REUSE_DETECTED')
+      await this.audit.record({
+        tenantId: null,
+        actorType: 'system',
+        actorId: null,
+        action: AUDIT_ACTIONS.refreshTokenReuse,
+        resourceType: 'session',
+        resourceId: stored.sessionId,
+        ip: input.ip ?? null,
+        userAgent: input.userAgent ?? null,
+        metadata: { familyId: stored.familyId },
+        outcome: 'failure',
+      })
       throw new RefreshTokenReuseError()
     }
 
@@ -57,12 +73,8 @@ export class RotateRefreshToken {
     if (stored.expiresAt.getTime() <= now.getTime()) throw new InvalidRefreshTokenError()
 
     const session = await this.sessions.findById(stored.sessionId)
-    if (!session || session.revokedAt !== null) {
-      throw new InvalidRefreshTokenError()
-    }
-    if (session.expiresAt.getTime() <= now.getTime()) {
-      throw new InvalidRefreshTokenError()
-    }
+    if (!session || session.revokedAt !== null) throw new InvalidRefreshTokenError()
+    if (session.expiresAt.getTime() <= now.getTime()) throw new InvalidRefreshTokenError()
 
     const { token: newRefresh, tokenHash: newHash } = this.refreshTokenService.mint()
     const newExpiresAt = new Date(now.getTime() + this.config.refreshTokenTtlSeconds * 1000)
@@ -83,6 +95,19 @@ export class RotateRefreshToken {
       sub: session.userId,
       tenantId: session.tenantId,
       sessionId: session.id,
+    })
+
+    await this.audit.record({
+      tenantId: session.tenantId,
+      actorType: 'user',
+      actorId: session.userId,
+      action: AUDIT_ACTIONS.refreshTokenRotated,
+      resourceType: 'session',
+      resourceId: session.id,
+      ip: input.ip ?? null,
+      userAgent: input.userAgent ?? null,
+      metadata: { familyId: stored.familyId },
+      outcome: 'success',
     })
 
     return {

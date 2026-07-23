@@ -1,3 +1,5 @@
+import { AUDIT_ACTIONS } from '../../../core/audit/entities.js'
+import type { AuditSink } from '../../../core/audit/ports.js'
 import {
   TenantNotFoundError,
   TenantSuspendedError,
@@ -16,6 +18,8 @@ export interface RegisterUserInput {
   email: string
   password: string
   displayName?: string | undefined
+  ip?: string | null | undefined
+  userAgent?: string | null | undefined
 }
 
 export interface RegisterUserResult {
@@ -30,6 +34,7 @@ export class RegisterUser {
     private readonly users: UserRepository,
     private readonly credentials: CredentialRepository,
     private readonly hasher: PasswordHasher,
+    private readonly audit: AuditSink,
   ) {}
 
   async execute(input: RegisterUserInput): Promise<RegisterUserResult> {
@@ -52,6 +57,19 @@ export class RegisterUser {
     })
 
     await this.credentials.upsertPassword(user.id, hashedPassword)
+
+    await this.audit.record({
+      tenantId: tenant.id,
+      actorType: 'user',
+      actorId: user.id,
+      action: AUDIT_ACTIONS.userRegistered,
+      resourceType: 'user',
+      resourceId: user.id,
+      ip: input.ip ?? null,
+      userAgent: input.userAgent ?? null,
+      metadata: { email: user.email },
+      outcome: 'success',
+    })
 
     return { userId: user.id, tenantId: tenant.id, email: user.email }
   }
