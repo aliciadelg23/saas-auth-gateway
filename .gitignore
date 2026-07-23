@@ -43,3 +43,6 @@ junit.xml
 # Runtime
 .pid
 *.pid
+
+# Developer-local convenience layer (Makefile + shell scripts under .dev/)
+.dev/
