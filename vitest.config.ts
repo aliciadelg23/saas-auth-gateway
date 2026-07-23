@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
+    // Integration tests share one Postgres — run test files sequentially
+    // so beforeEach truncations never step on a concurrent run.
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
@@ -17,6 +20,6 @@ export default defineConfig({
       },
     },
     reporters: ['default'],
-    testTimeout: 15000,
+    testTimeout: 20000,
   },
 })
